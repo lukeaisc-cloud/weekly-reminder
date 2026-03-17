@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="週期提醒">
+  <meta name="theme-color" content="#FF6B6B">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>週期提醒</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    :root {
+      --red: #FF6B6B;
+      --teal: #4ECDC4;
+      --bg: #FFF9F0;
+      --white: #FFFFFF;
+      --text: #2D3436;
+      --gray: #636E72;
+      --light: #B2BEC3;
+      --border: #F0E9DF;
+    }
+
+    body {
+      font-family: -apple-system, "PingFang TC", "Helvetica Neue", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── 頂部狀態列安全區 ── */
+    .safe-top {
+      height: env(safe-area-inset-top, 20px);
+      background: var(--red);
+    }
+
+    /* ── 英雄卡片 ── */
+    .hero {
+      background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+      margin: 16px;
+      border-radius: 24px;
+      padding: 28px 24px 22px;
+      box-shadow: 0 8px 32px rgba(255,107,107,0.30);
+      color: white;
+    }
+    .hero-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .hero-date .label { font-size: 13px; opacity: 0.8; margin-bottom: 2px; }
+    .hero-date .weekday { font-size: 28px; font-weight: 700; letter-spacing: 1px; }
+    .hero-clock { font-size: 38px; font-weight: 300; letter-spacing: 2px; font-variant-numeric: tabular-nums; }
+
+    .next-bar {
+      background: rgba(255,255,255,0.2);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .next-dot { width: 8px; height: 8px; border-radius: 50%; background: white; flex-shrink: 0; }
+    .next-info { flex: 1; }
+    .next-info .sub { font-size: 11px; opacity: 0.75; display: block; margin-bottom: 2px; }
+    .next-info .title { font-size: 15px; font-weight: 600; }
+    .next-countdown { text-align: right; }
+    .next-countdown .num { font-size: 18px; font-weight: 700; }
+    .next-countdown .unit { font-size: 11px; opacity: 0.8; }
+
+    /* ── 分區標題 ── */
+    .section-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 24px 20px 12px;
+    }
+    .section-bar { width: 5px; height: 22px; border-radius: 3px; flex-shrink: 0; }
+    .section-title { font-size: 17px; font-weight: 700; flex: 1; }
+    .section-badge {
+      font-size: 12px; font-weight: 500;
+      padding: 3px 12px; border-radius: 20px;
+    }
+    .badge-red { background: rgba(255,107,107,0.12); color: var(--red); }
+    .badge-teal { background: rgba(78,205,196,0.12); color: var(--teal); }
+
+    /* ── 提醒卡片 ── */
+    .card {
+      display: flex;
+      background: var(--white);
+      border-radius: 20px;
+      margin: 0 16px 14px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+      overflow: hidden;
+      transition: opacity 0.25s;
+    }
+    .card.inactive { opacity: 0.4; }
+    .card-bar { width: 7px; flex-shrink: 0; }
+    .card-body { flex: 1; padding: 20px 18px 16px; }
+
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .card-time { display: flex; align-items: baseline; gap: 5px; }
+    .card-time .hhmm { font-size: 38px; font-weight: 700; line-height: 1; }
+    .card-time .ampm { font-size: 14px; color: var(--light); }
+
+    /* toggle switch */
+    .toggle { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+    .toggle input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute; inset: 0;
+      background: #DDD; border-radius: 26px;
+      cursor: pointer; transition: background 0.25s;
+    }
+    .slider:before {
+      content: '';
+      position: absolute; left: 3px; top: 3px;
+      width: 20px; height: 20px;
+      background: white; border-radius: 50%;
+      transition: transform 0.25s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+    input:checked + .slider { background: var(--red); }
+    input:checked + .slider.teal { background: var(--teal); }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    .card-title { font-size: 16px; font-weight: 600; margin-bottom: 5px; }
+    .card-desc { font-size: 14px; color: var(--gray); line-height: 1.5; margin-bottom: 10px; }
+
+    .card-sub {
+      background: var(--bg); border-radius: 8px;
+      padding: 8px 12px; margin-bottom: 10px;
+    }
+    .card-sub span { font-size: 13px; color: var(--light); }
+
+    .repeat-badge {
+      display: inline-flex; align-items: center;
+      background: rgba(255,107,107,0.08);
+      border-radius: 6px; padding: 4px 10px; margin-bottom: 10px;
+    }
+    .repeat-badge span { font-size: 12px; color: var(--red); font-weight: 500; }
+
+    .btn-test {
+      width: 100%; height: 42px; border-radius: 10px;
+      border: none; cursor: pointer;
+      font-size: 14px; font-weight: 500;
+      background: rgba(255,107,107,0.1); color: var(--red);
+      transition: opacity 0.15s;
+      font-family: inherit;
+    }
+    .btn-test:active { opacity: 0.6; }
+    .btn-test.teal { background: rgba(78,205,196,0.1); color: var(--teal); }
+
+    /* ── 通知提示橫幅 ── */
+    .notify-banner {
+      margin: 0 16px 8px;
+      background: var(--white);
+      border-radius: 16px;
+      padding: 14px 16px;
+      border-left: 4px solid var(--teal);
+      box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+    }
+    .notify-banner p { font-size: 13px; color: var(--gray); line-height: 1.5; }
+    .notify-banner strong { color: var(--teal); }
+    .btn-notify {
+      margin-top: 10px; width: 100%; height: 38px;
+      border-radius: 8px; border: none; cursor: pointer;
+      background: var(--teal); color: white;
+      font-size: 14px; font-weight: 600; font-family: inherit;
+      transition: opacity 0.15s;
+    }
+    .btn-notify:active { opacity: 0.8; }
+    .btn-notify:disabled { background: var(--light); cursor: default; }
+
+    /* ── 安裝提示 ── */
+    .install-tip {
+      margin: 12px 16px 0;
+      background: rgba(255,107,107,0.06);
+      border-radius: 14px;
+      padding: 14px 16px;
+      border: 1px dashed rgba(255,107,107,0.25);
+    }
+    .install-tip p { font-size: 13px; color: var(--gray); line-height: 1.6; }
+    .install-tip strong { color: var(--red); }
+
+    .footer { height: 40px; }
+
+    /* ── 彈出提醒覆蓋層 ── */
+    .overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 999; align-items: flex-end;
+      padding-bottom: env(safe-area-inset-bottom, 16px);
+    }
+    .overlay.show { display: flex; animation: fadeIn 0.2s; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .alert-box {
+      background: var(--white);
+      border-radius: 24px 24px 0 0;
+      padding: 28px 24px 24px;
+      width: 100%;
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+
+    .alert-icon { font-size: 40px; margin-bottom: 12px; }
+    .alert-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .alert-msg { font-size: 15px; color: var(--gray); line-height: 1.6; margin-bottom: 22px; }
+    .alert-btn {
+      width: 100%; height: 52px; border-radius: 14px;
+      border: none; cursor: pointer;
+      background: var(--red); color: white;
+      font-size: 17px; font-weight: 600; font-family: inherit;
+    }
+    .alert-btn:active { opacity: 0.8; }
+  </style>
+</head>
+<body>
+
+<div class="safe-top"></div>
+
+<!-- 英雄卡片 -->
+<div class="hero">
+  <div class="hero-top">
+    <div class="hero-date">
+      <div class="label">今天</div>
+      <div class="weekday" id="weekday">週二</div>
+    </div>
+    <div class="hero-clock" id="clock">00:00:00</div>
+  </div>
+  <div class="next-bar" id="nextBar">
+    <div class="next-dot"></div>
+    <div class="next-info">
+      <span class="sub">下一個提醒</span>
+      <span class="title" id="nextTitle">計算中...</span>
+    </div>
+    <div class="next-countdown">
+      <div class="num" id="nextCountdown">--</div>
+      <div class="unit">後</div>
+    </div>
+  </div>
+</div>
+
+<!-- 通知權限提示 -->
+<div class="notify-banner" id="notifyBanner">
+  <p>開啟<strong>系統通知</strong>後，即使小程式在背景也能收到提醒推播。</p>
+  <button class="btn-notify" id="btnNotify" onclick="requestNotify()">開啟通知權限</button>
+</div>
+
+<!-- 週三打卡 -->
+<div class="section-head">
+  <div class="section-bar" style="background:var(--red)"></div>
+  <div class="section-title">週三打卡提醒</div>
+  <div class="section-badge badge-red">每週三</div>
+</div>
+
+<div class="card" id="card-wed1">
+  <div class="card-bar" style="background:var(--red)"></div>
+  <div class="card-body">
+    <div class="card-header">
+      <div class="card-time">
+        <span class="hhmm">1:00</span>
+        <span class="ampm">下午</span>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" checked onchange="toggleCard('wed1', this)">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="card-title">打卡提醒 ⏰</div>
+    <div class="card-desc">記得下午2點前打卡！</div>
+    <div class="card-sub"><span>最遲 14:00 前完成打卡</span></div>
+    <button class="btn-test" onclick="testAlert('打卡提醒', '現在是下午1點，記得在2點前打卡喔！', '⏰')">測試提醒</button>
+  </div>
+</div>
+
+<div class="card" id="card-wed2">
+  <div class="card-bar" style="background:var(--red)"></div>
+  <div class="card-body">
+    <div class="card-header">
+      <div class="card-time">
+        <span class="hhmm">4:00</span>
+        <span class="ampm">下午</span>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" checked onchange="toggleCard('wed2', this)">
+        <span class="slider"></span>
+      </label>
+    </div>
+    <div class="card-title">下班打卡提醒 🔔</div>
+    <div class="card-desc">已過下午4點，還沒打卡嗎？快去打卡！</div>
+    <div class="repeat-badge"><span>每10分鐘重複提醒</span></div>
+    <button class="btn-test" onclick="testAlert('下班打卡提醒', '已過下午4點！還沒打卡嗎？趕快去打卡！', '🔔')">測試提醒</button>
+  </div>
+</div>
+
+<!-- 週四上課 -->
+<div class="section-head">
+  <div class="section-bar" style="background:var(--teal)"></div>
+  <div class="section-title">週四上課提醒</div>
+  <div class="section-badge badge-teal">每週四</div>
+</div>
+
+<div class="card" id="card-thu1">
+  <div class="card-bar" style="background:var(--teal)"></div>
+  <div class="card-body">
+    <div class="card-header">
+      <div class="card-time">
+        <span class="hhmm">8:30</span>
+        <span class="ampm">上午</span>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" checked onchange="toggleCard('thu1', this)">
+        <span class="slider teal"></span>
+      </label>
+    </div>
+    <div class="card-title">上課提醒 📚</div>
+    <div class="card-desc">今天10:30有課，記得準備！</div>
+    <div class="card-sub"><span>10:30 開始上課</span></div>
+    <button class="btn-test teal" onclick="testAlert('上課提醒', '今天上午10:30有課，記得提前準備！', '📚')">測試提醒</button>
+  </div>
+</div>
+
+<div class="card" id="card-thu2">
+  <div class="card-bar" style="background:var(--teal)"></div>
+  <div class="card-body">
+    <div class="card-header">
+      <div class="card-time">
+        <span class="hhmm">10:00</span>
+        <span class="ampm">上午</span>
+      </div>
+      <label class="toggle">
+        <input type="checkbox" checked onchange="toggleCard('thu2', this)">
+        <span class="slider teal"></span>
+      </label>
+    </div>
+    <div class="card-title">出門提醒 🚪</div>
+    <div class="card-desc">10:30要上課，現在該出門了！</div>
+    <div class="card-sub"><span>出門去教室</span></div>
+    <button class="btn-test teal" onclick="testAlert('出門提醒', '10:30要上課，現在出門剛好！', '🚶')">測試提醒</button>
+  </div>
+</div>
+
+<!-- 安裝提示 -->
+<div class="install-tip">
+  <p>📲 <strong>加入主畫面</strong>：在 Safari 點底部分享按鈕 → 「加入主畫面」，就能像 App 一樣使用，並在背景收到提醒。</p>
+</div>
+
+<div class="footer"></div>
+
+<!-- 提醒彈窗 -->
+<div class="overlay" id="overlay" onclick="closeAlert()">
+  <div class="alert-box" onclick="event.stopPropagation()">
+    <div class="alert-icon" id="alertIcon">⏰</div>
+    <div class="alert-title" id="alertTitle">提醒</div>
+    <div class="alert-msg" id="alertMsg">提醒內容</div>
+    <button class="alert-btn" id="alertBtn" onclick="closeAlert()">知道了</button>
+  </div>
+</div>
+
+<script>
+// ── 提醒計劃定義 ──
+const SCHEDULES = [
+  { id: 'wed1',  week: 3, hour: 13, min: 0,  title: '打卡提醒',    msg: '下午2點前要打卡喔！',           icon: '⏰', color: '#FF6B6B', repeat: false },
+  { id: 'wed2',  week: 3, hour: 16, min: 0,  title: '下班打卡提醒', msg: '已過下午4點，還沒打卡嗎？',     icon: '🔔', color: '#FF6B6B', repeat: 10 },
+  { id: 'thu1',  week: 4, hour: 8,  min: 30, title: '上課提醒',    msg: '今天10:30有課，記得準備！',     icon: '📚', color: '#4ECDC4', repeat: false },
+  { id: 'thu2',  week: 4, hour: 10, min: 0,  title: '出門提醒',    msg: '10:30要上課，現在出門剛好！',   icon: '🚶', color: '#4ECDC4', repeat: false },
+];
+
+// 狀態管理
+const state = {
+  active: { wed1: true, wed2: true, thu1: true, thu2: true },
+  fired: {},      // 今天已觸發過的
+  repeatTimers: {}
+};
+
+// ── 時鐘 ──
+const WEEK_MAP = ['週日','週一','週二','週三','週四','週五','週六'];
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2,'0');
+  const m = String(now.getMinutes()).padStart(2,'0');
+  const s = String(now.getSeconds()).padStart(2,'0');
+  document.getElementById('clock').textContent = `${h}:${m}:${s}`;
+  document.getElementById('weekday').textContent = WEEK_MAP[now.getDay()];
+  updateNextReminder(now);
+  checkReminders(now);
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── 下一個提醒倒計時 ──
+function updateNextReminder(now) {
+  const todayW = now.getDay() === 0 ? 7 : now.getDay();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  let nearest = null, minDiff = Infinity;
+
+  SCHEDULES.forEach(s => {
+    if (!state.active[s.id]) return;
+    let dayDiff = s.week - todayW;
+    if (dayDiff < 0) dayDiff += 7;
+    if (dayDiff === 0 && s.hour * 60 + s.min <= nowMins) dayDiff = 7;
+    const diff = dayDiff * 1440 + s.hour * 60 + s.min - nowMins;
+    if (diff > 0 && diff < minDiff) { minDiff = diff; nearest = s; }
+  });
+
+  if (nearest) {
+    document.getElementById('nextTitle').textContent = nearest.title;
+    const d = Math.floor(minDiff / 1440);
+    const h = Math.floor((minDiff % 1440) / 60);
+    const m = minDiff % 60;
+    let t = '';
+    if (d > 0) t += `${d}天`;
+    if (h > 0) t += `${h}小時`;
+    t += `${m}分鐘`;
+    document.getElementById('nextCountdown').textContent = t;
+  }
+}
+
+// ── 檢查是否需要觸發提醒 ──
+function checkReminders(now) {
+  const todayW = now.getDay() === 0 ? 7 : now.getDay();
+  const nowH = now.getHours(), nowM = now.getMinutes(), nowS = now.getSeconds();
+
+  SCHEDULES.forEach(s => {
+    if (!state.active[s.id]) return;
+    if (s.week !== todayW) return;
+
+    const key = `${s.id}_${now.toDateString()}`;
+
+    // 精確到分鐘觸發（秒數在0-5秒內）
+    if (s.hour === nowH && s.min === nowM && nowS < 5) {
+      if (!state.fired[key]) {
+        state.fired[key] = true;
+        triggerReminder(s);
+
+        // 週三16點後 重複提醒
+        if (s.repeat) {
+          startRepeat(s, now);
+        }
+      }
+    }
+  });
+}
+
+// ── 重複提醒（週三16:00後每10分鐘）──
+function startRepeat(s, startTime) {
+  if (state.repeatTimers[s.id]) return;
+  state.repeatTimers[s.id] = setInterval(() => {
+    const now = new Date();
+    if (now.getHours() >= 20) {
+      clearInterval(state.repeatTimers[s.id]);
+      delete state.repeatTimers[s.id];
+      return;
+    }
+    if (state.active[s.id]) triggerReminder(s);
+  }, s.repeat * 60 * 1000);
+}
+
+// ── 觸發提醒 ──
+function triggerReminder(s) {
+  // 1. 振動
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+
+  // 2. 系統通知
+  if (Notification.permission === 'granted') {
+    new Notification(s.title, {
+      body: s.msg,
+      icon: 'icon-192.png',
+      badge: 'icon-192.png',
+      vibrate: [200, 100, 200]
+    });
+  }
+
+  // 3. 頁面彈窗（頁面在前台時）
+  showAlert(s.title, s.msg, s.icon, s.color);
+}
+
+// ── 彈窗 ──
+function showAlert(title, msg, icon, color) {
+  document.getElementById('alertIcon').textContent = icon;
+  document.getElementById('alertTitle').textContent = title;
+  document.getElementById('alertMsg').textContent = msg;
+  document.getElementById('alertBtn').style.background = color;
+  document.getElementById('overlay').classList.add('show');
+  if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+}
+function closeAlert() {
+  document.getElementById('overlay').classList.remove('show');
+}
+
+// ── 測試按鈕 ──
+function testAlert(title, msg, icon) {
+  showAlert(title, msg, icon, '#FF6B6B');
+}
+
+// ── 開關切換 ──
+function toggleCard(id, el) {
+  state.active[id] = el.checked;
+  const card = document.getElementById('card-' + id);
+  card.classList.toggle('inactive', !el.checked);
+}
+
+// ── 通知權限 ──
+async function requestNotify() {
+  const btn = document.getElementById('btnNotify');
+  if (!('Notification' in window)) {
+    btn.textContent = '此瀏覽器不支援通知';
+    btn.disabled = true;
+    return;
+  }
+  const perm = await Notification.requestPermission();
+  const banner = document.getElementById('notifyBanner');
+  if (perm === 'granted') {
+    banner.innerHTML = '<p>✅ <strong>通知已開啟！</strong>即使頁面在背景也能收到提醒。</p>';
+    banner.style.borderLeftColor = 'var(--teal)';
+  } else {
+    btn.textContent = '已拒絕，請在設定中手動開啟';
+    btn.disabled = true;
+  }
+}
+
+// 頁面載入時自動檢查通知狀態
+window.addEventListener('load', () => {
+  if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+    document.getElementById('notifyBanner').innerHTML =
+      '<p>✅ <strong>通知已開啟！</strong>即使頁面在背景也能收到提醒。</p>';
+  }
+
+  // iOS 安裝提示：已在主畫面模式時隱藏安裝提示
+  if (window.navigator.standalone) {
+    document.querySelector('.install-tip').style.display = 'none';
+  }
+
+  // 註冊 Service Worker（離線支援）
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
